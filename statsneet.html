@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEET Preparation Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  background:#0f172a;
+  color:#e5e7eb;
+  font-family:Arial, sans-serif;
+  padding:20px;
+}
+h1{text-align:center;color:#22d3ee;margin-bottom:20px}
+
+/* MAIN LAYOUT */
+.main{
+  display:grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap:20px;
+}
+
+/* CARDS */
+.card{
+  background:#020617;
+  padding:15px;
+  border-radius:10px;
+  box-shadow:0 0 15px rgba(0,0,0,.6);
+}
+
+/* FORM */
+button,select,input{
+  width:100%;
+  padding:8px;
+  margin-top:8px;
+  background:#020617;
+  color:#e5e7eb;
+  border:1px solid #334155;
+  border-radius:6px;
+}
+button{
+  background:#0891b2;
+  border:none;
+  cursor:pointer;
+}
+button:hover{background:#0e7490}
+
+/* SECTIONS */
+.section{margin-top:12px}
+.section h3{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.section-content{
+  overflow:hidden;
+  transition:max-height .35s ease;
+}
+.section-content.hidden{max-height:0}
+.section-content.visible{max-height:1600px}
+
+ul{list-style:none;padding:0}
+li{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:6px;
+  margin:6px 0;
+}
+.remove{
+  background:#dc2626;
+  border:none;
+  padding:4px 6px;
+  border-radius:4px;
+  cursor:pointer;
+}
+.remove:hover{background:#b91c1c}
+
+/* CHART SIZE FIX */
+.chart-box{
+  height:260px;
+  margin-bottom:20px;
+}
+canvas{
+  width:100% !important;
+  height:100% !important;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🧬 NEET Preparation Tracker</h1>
+
+<div class="main">
+
+<!-- LEFT SIDE -->
+<div class="card">
+  <h3>Add Chapter</h3>
+  <select id="subject">
+    <option>Physics</option>
+    <option>Chemistry</option>
+    <option>Biology</option>
+  </select>
+  <input id="chapter" placeholder="Chapter name">
+  <button onclick="addChapter()">Add Chapter</button>
+
+  <h3 style="margin-top:20px">Syllabus</h3>
+  <div id="sections"></div>
+</div>
+
+<!-- RIGHT SIDE -->
+<div class="card">
+  <h3>Progress</h3>
+  <div class="chart-box">
+    <canvas id="barChart"></canvas>
+  </div>
+  <div class="chart-box">
+    <canvas id="pieChart"></canvas>
+  </div>
+</div>
+
+</div>
+
+<script>
+const syllabus={
+Physics:[
+"Physical World","Units & Dimensions","Motion in Straight Line","Motion in Plane",
+"Laws of Motion","Work Energy Power","Centre of Mass & Rotation","Gravitation",
+"Mechanical Properties of Solids","Mechanical Properties of Fluids",
+"Thermal Properties","Thermodynamics","Kinetic Theory","Oscillations & Waves",
+"Electrostatics","Current Electricity","Magnetic Effects",
+"Magnetism & Matter","EMI","Alternating Current","EM Waves",
+"Ray Optics","Wave Optics","Dual Nature","Atoms","Nuclei","Semiconductors"
+],
+Chemistry:[
+"Mole Concept","Atomic Structure","States of Matter","Thermodynamics",
+"Chemical Equilibrium","Ionic Equilibrium","Redox","Electrochemistry",
+"Kinetics","Solutions","Surface Chemistry","GOC","Hydrocarbons",
+"Haloalkanes","Alcohols Phenols Ethers","Aldehydes Ketones Acids",
+"Amines","Biomolecules","Polymers","Chemistry in Everyday Life",
+"Periodic Table","Hydrogen","s Block","p Block","d & f Block",
+"Coordination Compounds","Metallurgy","Environmental Chemistry"
+],
+Biology:[
+"Diversity in Living World","Plant Kingdom","Morphology of Plants",
+"Anatomy of Plants","Cell Structure","Cell Cycle","Photosynthesis",
+"Respiration in Plants","Plant Growth","Mineral Nutrition","Transport in Plants",
+"Sexual Reproduction in Plants","Animal Kingdom","Structural Organisation",
+"Digestion","Breathing","Circulation","Excretion","Locomotion",
+"Neural Control","Chemical Coordination","Human Reproduction",
+"Reproductive Health","Inheritance","Molecular Basis","Evolution",
+"Human Health & Disease","Microbes","Biotechnology Principles",
+"Biotechnology Applications","Ecology","Environment"
+]
+};
+
+let data = JSON.parse(localStorage.getItem("neetLayoutData")) ||
+Object.fromEntries(Object.entries(syllabus)
+.map(([k,v])=>[k,v.map(c=>({name:c,done:false}))]));
+
+let sectionState = JSON.parse(localStorage.getItem("neetLayoutState")) ||
+{Physics:true,Chemistry:true,Biology:true};
+
+function save(){
+  localStorage.setItem("neetLayoutData",JSON.stringify(data));
+  localStorage.setItem("neetLayoutState",JSON.stringify(sectionState));
+}
+
+function addChapter(){
+  const s=subject.value,n=chapter.value.trim();
+  if(!n)return;
+  data[s].push({name:n,done:false});
+  chapter.value="";
+  save();render();
+}
+
+function toggleDone(s,i){
+  data[s][i].done=!data[s][i].done;
+  save();drawCharts();
+}
+
+function removeCh(s,i){
+  data[s].splice(i,1);
+  save();render();
+}
+
+function toggleSection(s){
+  sectionState[s]=!sectionState[s];
+  save();render();
+}
+
+function render(){
+  sections.innerHTML="";
+  for(let s in data){
+    const open=sectionState[s];
+    let h=`
+    <div class="section">
+      <h3>${s}
+        <button onclick="toggleSection('${s}')">${open?"Hide":"Show"}</button>
+      </h3>
+      <div class="section-content ${open?"visible":"hidden"}"><ul>`;
+    data[s].forEach((c,i)=>{
+      h+=`
+      <li>
+        ${c.name}
+        <input type="checkbox" ${c.done?"checked":""}
+        onchange="toggleDone('${s}',${i})">
+        <button class="remove" onclick="removeCh('${s}',${i})">X</button>
+      </li>`;
+    });
+    h+=`</ul></div></div>`;
+    sections.innerHTML+=h;
+  }
+  drawCharts();
+}
+
+let bar,pie;
+function drawCharts(){
+  const completed=Object.values(data).map(s=>s.filter(c=>c.done).length);
+
+  if(bar)bar.destroy();
+  bar=new Chart(barChart,{
+    type:"bar",
+    data:{
+      labels:Object.keys(data),
+      datasets:[{label:"Completed Chapters",data:completed}]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+
+  if(pie)pie.destroy();
+  pie=new Chart(pieChart,{
+    type:"pie",
+    data:{
+      labels:Object.keys(data),
+      datasets:[{data:completed}]
+    },
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
+
+render();
+</script>
+
+</body>
+</html>
