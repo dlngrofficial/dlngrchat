@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JEE Tracker Dark (Fixed)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+  background:#0f172a;
+  color:#e5e7eb;
+  font-family:Arial, sans-serif;
+  padding:20px;
+}
+h1{text-align:center;color:#38bdf8}
+.container{
+  display:flex;
+  flex-wrap:wrap;
+  gap:20px;
+  justify-content:center;
+}
+.card{
+  background:#020617;
+  width:380px;
+  padding:15px;
+  border-radius:10px;
+  box-shadow:0 0 15px rgba(0,0,0,0.6);
+}
+button,select,input{
+  width:100%;
+  padding:8px;
+  margin-top:8px;
+  background:#020617;
+  color:#e5e7eb;
+  border:1px solid #334155;
+  border-radius:6px;
+}
+button{
+  background:#0284c7;
+  border:none;
+  cursor:pointer;
+}
+button:hover{background:#0369a1}
+.section{margin-top:10px}
+.section h3{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.section-content{
+  overflow:hidden;
+  transition:max-height 0.35s ease;
+}
+.section-content.hidden{max-height:0}
+.section-content.visible{max-height:1200px}
+ul{list-style:none;padding:0}
+li{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:6px;
+  margin:6px 0;
+}
+.remove{
+  background:#dc2626;
+  border:none;
+  padding:4px 6px;
+  border-radius:4px;
+  cursor:pointer;
+}
+.remove:hover{background:#b91c1c}
+</style>
+</head>
+
+<body>
+
+<h1> PERSONAL Preparation Tracker</h1>
+
+<div class="container">
+
+<div class="card">
+<h3>Add Chapter</h3>
+<select id="subject">
+<option>Mathematics</option>
+<option>Physics</option>
+<option>Chemistry</option>
+</select>
+<input id="chapter" placeholder="Chapter name">
+<button onclick="addChapter()">Add Chapter</button>
+</div>
+
+<div class="card">
+<h3>Syllabus</h3>
+<div id="sections"></div>
+</div>
+
+<div class="card">
+<h3>Progress (Bar)</h3>
+<canvas id="barChart"></canvas>
+<h3 style="margin-top:20px">Overall Completion (Pie)</h3>
+<canvas id="pieChart"></canvas>
+</div>
+
+</div>
+
+<script>
+const syllabus={
+Mathematics:[
+"Sets & Functions","Complex Numbers","Quadratic Equations",
+"Sequences & Series","Permutations & Combinations","Binomial Theorem",
+"Limits & Continuity","Differentiation","Application of Derivatives",
+"Integration","Differential Equations","Matrices","Determinants",
+"Vectors","3D Geometry","Straight Lines","Circles","Conic Sections",
+"Probability","Statistics"
+],
+Physics:[
+"Units & Dimensions","Motion in 1D","Motion in 2D","Laws of Motion",
+"Work Power Energy","Rotational Motion","Gravitation","Thermodynamics",
+"KTG","Oscillations","Waves","Electrostatics","Current Electricity",
+"Capacitors","Magnetism","EMI","Alternating Current","Ray Optics",
+"Wave Optics","Dual Nature","Atoms & Nuclei","Semiconductors"
+],
+Chemistry:[
+"Mole Concept","Atomic Structure","Chemical Bonding","States of Matter",
+"Thermodynamics","Chemical Equilibrium","Ionic Equilibrium","Redox",
+"Electrochemistry","Chemical Kinetics","Solutions","Surface Chemistry",
+"GOC","Hydrocarbons","Haloalkanes","Alcohols Phenols Ethers",
+"Aldehydes Ketones","Carboxylic Acids","Amines","Biomolecules",
+"Polymers","Periodic Table","s Block","p Block","d & f Block",
+"Coordination Compounds","Metallurgy","Environmental Chemistry"
+]
+};
+
+let data = JSON.parse(localStorage.getItem("jeeFixedData")) ||
+Object.fromEntries(Object.entries(syllabus)
+.map(([k,v])=>[k,v.map(c=>({name:c,done:false}))]));
+
+let sectionState = JSON.parse(localStorage.getItem("jeeSectionState")) || {
+Mathematics:true,
+Physics:true,
+Chemistry:true
+};
+
+function save(){
+  localStorage.setItem("jeeFixedData",JSON.stringify(data));
+  localStorage.setItem("jeeSectionState",JSON.stringify(sectionState));
+}
+
+function addChapter(){
+  const s=subject.value,n=chapter.value.trim();
+  if(!n)return;
+  data[s].push({name:n,done:false});
+  chapter.value="";
+  save();render();
+}
+
+function toggleDone(s,i){
+  data[s][i].done=!data[s][i].done;
+  save();drawCharts();
+}
+
+function removeCh(s,i){
+  data[s].splice(i,1);
+  save();render();
+}
+
+function toggleSection(s){
+  sectionState[s]=!sectionState[s];
+  save();
+  render();
+}
+
+function render(){
+  sections.innerHTML="";
+  for(let s in data){
+    const visible=sectionState[s];
+    let html=`
+    <div class="section">
+      <h3>${s}
+        <button onclick="toggleSection('${s}')">
+          ${visible?"Hide":"Show"}
+        </button>
+      </h3>
+      <div class="section-content ${visible?"visible":"hidden"}">
+        <ul>`;
+    data[s].forEach((c,i)=>{
+      html+=`
+      <li>
+        ${c.name}
+        <input type="checkbox" ${c.done?"checked":""}
+        onchange="toggleDone('${s}',${i})">
+        <button class="remove" onclick="removeCh('${s}',${i})">X</button>
+      </li>`;
+    });
+    html+=`</ul></div></div>`;
+    sections.innerHTML+=html;
+  }
+  drawCharts();
+}
+
+let bar,pie;
+function drawCharts(){
+  const completed=Object.values(data).map(s=>s.filter(c=>c.done).length);
+
+  if(bar)bar.destroy();
+  bar=new Chart(barChart,{
+    type:"bar",
+    data:{
+      labels:Object.keys(data),
+      datasets:[{label:"Completed Chapters",data:completed}]
+    },
+    options:{scales:{y:{beginAtZero:true}}}
+  });
+
+  if(pie)pie.destroy();
+  pie=new Chart(pieChart,{
+    type:"pie",
+    data:{
+      labels:Object.keys(data),
+      datasets:[{data:completed}]
+    }
+  });
+}
+
+render();
+</script>
+
+</body>
+</html>
